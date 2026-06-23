@@ -1,0 +1,27 @@
+{
+  "name": "restaurant-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "api:dev": "turbo run dev --filter=@restaurant/api",
+    "web:dev": "turbo run dev --filter=@restaurant/web",
+    "staff:dev": "turbo run dev --filter=@restaurant/staff",
+    "kitchen:dev": "turbo run dev --filter=@restaurant/kitchen",
+    "admin:dev": "turbo run dev --filter=@restaurant/admin",
+    "db:migrate": "pnpm --filter=@restaurant/api exec prisma migrate dev",
+    "db:generate": "pnpm --filter=@restaurant/api exec prisma generate",
+    "db:seed": "pnpm --filter=@restaurant/api exec prisma db seed",
+    "db:studio": "pnpm --filter=@restaurant/api exec prisma studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

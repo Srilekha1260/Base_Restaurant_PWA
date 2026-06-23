@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-primary: #1a1a1a;
+  --brand-secondary: #e63946;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-heading: 'Playfair Display', Georgia, serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1a1a1a; }
+::-webkit-scrollbar-thumb { background: #e63946; border-radius: 3px; }
+
+/* GSAP will-change hint */
+.gsap-target {
+  will-change: transform, opacity;
+}
+
+/* Hide scrollbar for category tabs on mobile */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Safe area for mobile bottom bar */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0); }
+
+/* react-phone-number-input — dark theme to match the takeaway form */
+.phone-input-dark {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #1c1917; /* stone-900 */
+  border: 1px solid #44403c; /* stone-700 */
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+.phone-input-dark:focus-within { border-color: #ef4444; /* red-500 */ }
+.phone-input-dark .PhoneInputInput {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 1rem;
+  flex: 1;
+}
+.phone-input-dark .PhoneInputInput::placeholder { color: #78716c; }
+.phone-input-dark .PhoneInputCountrySelect { color: #1c1917; }
+.phone-input-dark .PhoneInputCountryIcon { box-shadow: none; }
+.phone-input-dark .PhoneInputCountrySelectArrow { color: #a8a29e; opacity: 1; }

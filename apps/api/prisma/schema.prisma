@@ -1,0 +1,373 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  WAITER
+  CASHIER
+  KITCHEN
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+}
+
+enum OrderStatus {
+  OPEN
+  IN_KITCHEN
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum OrderItemStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD_STRIPE
+  CARD_EFTPOS
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum KitchenTicketStatus {
+  PENDING
+  PRINTED
+  IN_PROGRESS
+  DONE
+}
+
+// ─── Tenant / Company ────────────────────────────────────────────────────────
+
+model Tenant {
+  id                  String   @id @default(cuid())
+  name                String
+  slug                String   @unique
+  logoUrl             String?
+  primaryColor        String?  @default("#1a1a1a")
+  secondaryColor      String?  @default("#e63946")
+  domain              String?
+  // NZ defaults
+  currency            String   @default("NZD")
+  gstRate             Decimal  @db.Decimal(5, 4) @default(0.15)
+  // Delivery config
+  deliveryEnabled     Boolean  @default(false)
+  deliveryProvider    String?
+  deliveryRedirectUrl String?
+  deliveryButtonLabel String?  @default("Order on Uber Eats")
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  branches       Branch[]
+  users          User[]
+  menuCategories MenuCategory[]
+  menuItems      MenuItem[]
+  featureFlags   FeatureFlag[]
+  taxRules       TaxRule[]
+
+  @@map("tenants")
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  address   String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sections       Section[]
+  printerConfigs PrinterConfig[]
+  orders         Order[]
+
+  @@map("branches")
+}
+
+// ─── Users & Auth ────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email        String
+  passwordHash String
+  name         String
+  role         Role
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  orders    Order[]
+  auditLogs AuditLog[]
+
+  @@unique([tenantId, email])
+  @@map("users")
+}
+
+// ─── Restaurant Layout ───────────────────────────────────────────────────────
+
+model Section {
+  id        String   @id @default(cuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  tables Table[]
+
+  @@map("sections")
+}
+
+model Table {
+  id        String  @id @default(cuid())
+  sectionId String
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  name      String
+  capacity  Int     @default(4)
+  isActive  Boolean @default(true)
+
+  orders Order[]
+
+  @@map("tables")
+}
+
+// ─── Menu ────────────────────────────────────────────────────────────────────
+
+model MenuCategory {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  menuItems MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  imageUrl    String?
+  isAvailable Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@map("menu_items")
+}
+
+// ─── Orders ──────────────────────────────────────────────────────────────────
+
+model Order {
+  id        String      @id @default(cuid())
+  branchId  String
+  branch    Branch      @relation(fields: [branchId], references: [id])
+  tableId   String?
+  table     Table?      @relation(fields: [tableId], references: [id])
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id])
+  type      OrderType
+  status    OrderStatus @default(OPEN)
+  sessionId String?
+  notes     String?
+  // Customer details for public (takeaway) orders placed without a staff account
+  customerName  String?
+  customerPhone String?
+  customerEmail String?
+  // Delivery address for public DELIVERY orders.
+  customerAddress String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  orderItems     OrderItem[]
+  kitchenTickets KitchenTicket[]
+  payment        Payment?
+  splitBills     SplitBill[]
+
+  @@index([branchId, status])
+  @@index([sessionId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String          @id @default(cuid())
+  orderId    String
+  order      Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId String
+  menuItem   MenuItem        @relation(fields: [menuItemId], references: [id])
+  quantity   Int
+  unitPrice  Decimal         @db.Decimal(10, 2)
+  notes      String?
+  status     OrderItemStatus @default(PENDING)
+  // The kitchen ticket (send/round) this item was fired in. Lets the kitchen
+  // display show only the items belonging to each ticket, not the whole order.
+  kitchenTicketId String?
+  kitchenTicket   KitchenTicket? @relation(fields: [kitchenTicketId], references: [id])
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  edits OrderItemEdit[]
+
+  @@map("order_items")
+}
+
+model OrderItemEdit {
+  id          String    @id @default(cuid())
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  fieldName   String
+  oldValue    String?
+  newValue    String?
+  editedById  String?
+  editedAt    DateTime  @default(now())
+
+  @@map("order_item_edits")
+}
+
+// ─── Kitchen ─────────────────────────────────────────────────────────────────
+
+model KitchenTicket {
+  id        String              @id @default(cuid())
+  orderId   String
+  order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  printerId String?
+  printer   PrinterConfig?      @relation(fields: [printerId], references: [id])
+  status    KitchenTicketStatus @default(PENDING)
+  printedAt DateTime?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  orderItems OrderItem[]
+
+  @@map("kitchen_tickets")
+}
+
+model PrinterConfig {
+  id        String  @id @default(cuid())
+  branchId  String
+  branch    Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  name      String
+  ipAddress String?
+  port      Int?    @default(9100)
+  isDefault Boolean @default(false)
+
+  kitchenTickets KitchenTicket[]
+
+  @@map("printer_configs")
+}
+
+// ─── Payments ────────────────────────────────────────────────────────────────
+
+model Payment {
+  id                    String        @id @default(cuid())
+  orderId               String        @unique
+  order                 Order         @relation(fields: [orderId], references: [id])
+  method                PaymentMethod
+  totalAmount           Decimal       @db.Decimal(10, 2)
+  gstAmount             Decimal       @db.Decimal(10, 2)
+  tipAmount             Decimal       @db.Decimal(10, 2) @default(0)
+  status                PaymentStatus @default(PENDING)
+  stripePaymentIntentId String?
+  // Approval/auth reference returned by the EFTPOS terminal on success.
+  terminalReference     String?
+  paidAt                DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@map("payments")
+}
+
+model SplitBill {
+  id          String        @id @default(cuid())
+  orderId     String
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  splitNumber Int
+  amount      Decimal       @db.Decimal(10, 2)
+  method      PaymentMethod
+  status      PaymentStatus @default(PENDING)
+  paidAt      DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("split_bills")
+}
+
+// ─── Config & Flags ──────────────────────────────────────────────────────────
+
+model FeatureFlag {
+  id       String  @id @default(cuid())
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  key      String
+  value    Boolean @default(false)
+
+  @@unique([tenantId, key])
+  @@map("feature_flags")
+}
+
+model TaxRule {
+  id        String  @id @default(cuid())
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  rate      Decimal @db.Decimal(5, 4)
+  isDefault Boolean @default(false)
+
+  @@map("tax_rules")
+}
+
+// ─── Audit ───────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
