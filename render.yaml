@@ -12,6 +12,7 @@ services:
     buildCommand: >-
       corepack enable &&
       pnpm install --frozen-lockfile &&
+      pnpm --filter=@restaurant/types build &&
       pnpm --filter=@restaurant/api exec prisma generate &&
       pnpm --filter=@restaurant/api exec prisma migrate deploy &&
       pnpm --filter=@restaurant/api build
